@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>D3: Setting path fills dynamically to generate a choropleth</title>
+
+
+		<style type="text/css">
+        svg {
+                        font: 6px sans-serif;
+        }
+        
+        p
+        { 
+            font: 12px sans-serif; 
+                       font-weight: bold;
+            }
+        path {
+          stroke:white;
+          stroke-width: 1px;
+        }
+			#map {
+				width: 960px;
+				height: 500px;
+				/* left: 100px;  */
+				/* top: 100px; */
+				position: absolute; 
+				abackground: #eee;
+
+			}
+
+			#map svg {
+				width: 960px;
+				height: 500px;
+			}
+
+			.tooltip {
+			  position: absolute;
+			  text-align: center;
+			  width: 60px;
+			  height: 12px;
+			  padding: 8px;
+			  font: 10px sans-serif;
+			  background: #ddd;
+			  border: solid 1px white;
+			  border-radius: 8px;
+			  pointer-events: none;
+			}
+			
+			.city {
+			  font: 6px sans-serif;
+			}
+
+	        .caption {
+                font: 8px sans-serif;
+              font-weight: bold;
+            }
+
+            .key path {
+              display: none;
+            }
+
+            .key line {
+              stroke: #000;
+              shape-rendering: crispEdges;
+            }
+            
+		</style>
+	</head>
+	<body>
+		<p> 2013 Bay Area All Homes Values</p>
+		
+<!--		<script src="http://www.trulia.com/trends/vis/lib/js/d3_2.8.1/d3.v2.min.js"></script>
+		<script src="http://www.trulia.com/trends/vis/lib/js/jquery-1.6.2.min.js"></script> 
+			<script src="http://d3js.org/d3.v2.js?2.9.1"></script>!-->
+		<div id="map"></div>
+		 
+		<script src="http://d3js.org/d3.v3.min.js"></script>
+
+		<script src="http://d3js.org/topojson.v1.min.js"></script>
+		<script>
+
+			//Width and height
+			var w = 960;
+			var h = 500;
+		
+			var myFormat = d3.format(',');
+
+
+			//Define map projection
+					var projection = d3.geo.albers()
+										   .translate([w/2, h/2])
+										.center([0, 142.60])
+					                    .rotate([120.5, 0])
+										   .scale(9000);
+
+			//Define path generator
+			var path = d3.geo.path()
+							 .projection(projection);
+							 
+					
+			
+			var color = d3.scale.quantize()
+//			        .domain([189933,4642717])
+                        .range(["#fee5d9",
+                         "#fcbba1",
+                         "#fc9272",
+                         "#fb6a4a",
+                         "#ef3b2c",
+                         "#cb181d",
+                         "#99000d"
+				  ]
+				 );
+			
+var qrange = function(max, num) {
+             var a = [];
+             for (var i=0; i<num; i++) {
+                 a.push(i*max/num);
+                     }
+                     return a;
+                 }  
+			    
+			    
+			var svg = d3.select("#map")
+						.append("svg")
+					//	.attr("width", w)
+					//	.attr("height", h);
+
+            //
+			d3.csv("2013BAHomeVal.csv", function(mapping) {
+
+				//Set input domain for color scale
+				var mins = d3.min(mapping, function(d) { return +d.value2013; });
+				var maxs = d3.max(mapping, function(d) { return +d.value2013; });
+				color.domain([mins, maxs]);
+                
+                console.log(mins);
+                console.log(maxs);
+
+				//Load in GeoJSON data
+				d3.json("zipcode.json", function(json) {
+
+					//Merge the ag. data and GeoJSON
+					//Loop through once for each ag. data value
+					for (var i = 0; i < mapping.length; i++) {
+				        var forPair = mapping[i];
+						//Grab state name
+						var zip      = forPair.zip;
+						//console.log("zip", zip);
+						var zipValue = parseFloat(forPair.value2013);
+						var countyName = forPair.county;
+						//console.log("zipValue", zipValue);
+						//Find the corresponding state inside the GeoJSON
+						for (var j = 0; j < json.features.length; j++) {
+						    var currentFeature = json.features[j];
+							var mapZip = currentFeature.properties.ZIP_CODE_5;				
+				    		//console.log("mapZip", mapZip)
+							if (zip == mapZip) {
+								//Copy the data value into the JSON
+								currentFeature.properties["value2013"] = zipValue;
+							//	console.log( "currentFeature.properties[\"value\"]"
+							//	           , currentFeature.properties["value"])
+								
+  				                currentFeature.properties["county"] = countyName;
+  				              //  console.log( "currentFeature.properties[\"county\"]"
+  				           //, currentFeature.properties["county"])
+		
+                                					break;
+
+                        				}
+                        			}		
+                        		
+}
+
+					//Bind data and create one path per GeoJSON feature
+					var temp = svg.selectAll("path")
+					   .data(json.features)
+					   .enter()
+					   .append("path")
+					   .attr("d", path)
+					   .style("fill", function(d) {
+					   		//Get data value
+					   		var value = d.properties["value2013"];
+					        //console.log(d)
+//				  			console.log(value)
+					   		
+					   		if (value) {
+					   			//If value exists…
+						   		return color(value);
+					   		} else {
+					   			//If value is undefined…
+						   		return "#ccc";
+					   		}
+					   })
+					   
+   					d3.csv("uc-cities5.csv", function(data) {
+
+   						svg.selectAll("circle")
+   						   .data(data)
+   						   .enter()
+   						   .append("circle")
+   						   .attr("cx", function(d) {
+   							   var cxproj = projection([d.lon, d.lat])[0]
+   							   
+   							   
+     							console.log(cxproj);
+   							   return cxproj;
+
+   						   })
+   						   
+   
+   						   .attr("cy", function(d) {
+   							   return projection([d.lon, d.lat])[1];
+   						   })
+   						   .attr("r", 3)
+   						   .style("fill", "#1c9099")
+   						   .style("opacity", 0.75);
+
+   					});
+
+   					d3.csv("uc-cities5.csv", function(data) {
+
+   					svg.selectAll("#blah")
+   					.data(data)
+   					.enter()
+   					.append("text")
+   					.attr("class", "city")
+   					    .attr("transform", function(d) { return "translate(" + projection([d.lon, d.lat]) + ")"; })
+   					    .attr("x", 5)
+   					    .text(function(d) { return d.place; });
+   					});
+
+
+
+    temp.on("mouseover", function(d) {
+                        var xPosition = d3.mouse(this)[0];
+                        var yPosition = d3.mouse(this)[1] - 30;
+
+                        svg.append("text")
+                            .attr("id", "tooltip")
+                            .attr("x", xPosition)
+                            .attr("y", yPosition)
+                            .attr("text-anchor", "middle")
+                            .attr("font-family", "sans-serif")
+                            .attr("font-size", "11px")
+                            .attr("font-weight", "bold")
+                            .attr("fill", "#1c9099")
+                            .text(d.properties.ZIP_CODE_5 + ", $" +  (myFormat(d3.round(d.properties.value2013, 0))) + ", " + d.properties.county);
+                                d3.select(this)
+                      .style("fill", "#e5f5e0");
+                  })
+  .on("mouseout", function(d) {
+                      d3.select("#tooltip").remove();
+                      d3.select(this)
+                      .transition()
+                      .duration(250)
+          			.style("fill", function(d) {
+  					   		//Get data value
+  					   		var value = d.properties["value2013"];
+
+//                            console.log(value)
+                            
+  					   		if (value) {
+  					   			//If value exists…
+  						   		return color(value);
+  					   		} else {
+  					   			//If value is undefined…
+  						   		return "#ccc";
+  					   		}
+                  });
+  })
+
+  var x = d3.scale.linear()
+    .domain([mins,maxs])
+    .range([0,150]);
+
+  var xAxis = d3.svg.axis()
+                .scale(x)
+                .orient("bottom")
+                .tickSize(0)
+                .tickPadding(9)
+                .tickValues(qrange(color.domain()[1], color.range().length))
+
+    .tickFormat(function(d) { return "$" + (d3.round(myFormat(d/1000000),1)) + "M" ; });
+
+  var g = svg.append("g")
+    .attr("class", "key")
+    .attr("transform", "translate( 50," + h * 1/2 + ")")
+
+
+  g.selectAll("rect")
+    .data(color.range().map(function(color1) {
+      var d = color.invertExtent(color1);
+      if (d[0] == null) d[0] = x.domain()[0];
+      if (d[1] == null) d[1] = x.domain()[1];
+      return d;
+    }))
+  .enter().append("rect")
+    .attr("height", 5)
+    .attr("x", function(d) { return (x(d[0])); })
+    .attr("width", function(d) { return x(d[1]) - x(d[0]); })
+    .style("fill", function(d) { return color(d[0]); });
+
+  g.call(xAxis).append("text")
+    .attr("class", "caption")
+    .attr("x", -25)
+    .attr("y", -6)
+    .text("Home Values")
+		    
+		
+			});	
+
+	});
+
+
+
+
+								
+
+		</script>
+	</body>
+</html>
